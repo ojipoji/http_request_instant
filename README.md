@@ -18,7 +18,12 @@ Library sederhana untuk melakukan HTTP request di Go (GET, POST, PUT, DELETE) de
 
 ```bash
 go get github.com/ojipoji/http_request_instant@latest
+```
 
+
+# Contoh Penggunaan
+
+## GET Request
 
 ```go
 package main
@@ -42,6 +47,9 @@ func main() {
 	fmt.Println("Status:", resp.StatusCode)
 	fmt.Println("Body:", string(resp.Body))
 }
+```
+
+## POST Request dengan JSON
 
 ```go
 package main
@@ -72,6 +80,9 @@ func main() {
 	println("Status:", resp.StatusCode)
 	println("Body:", string(resp.Body))
 }
+```
+
+## POST dengan XML
 
 ```go
 package main
@@ -103,7 +114,9 @@ func main() {
 	println("Status:", resp.StatusCode)
 	println("Body:", string(resp.Body))
 }
+```
 
+## Basic Auth
 
 ```go
 package main
@@ -130,8 +143,10 @@ func main() {
 	println("Status:", resp.StatusCode)
 	println("Body:", string(resp.Body))
 }
+```
 
 
+## Flexible Response → Unmarshal langsung ke struct (opsional)
 
 ```go
 package main
@@ -163,5 +178,5 @@ func main() {
 	fmt.Println("Status:", resp.StatusCode)
 	fmt.Println("Parsed Struct:", result)
 }
-
+```
 
