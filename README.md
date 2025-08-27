@@ -21,9 +21,9 @@ go get github.com/ojipoji/http_request_instant@latest
 ```
 
 
-# Contoh Penggunaan
+## Contoh Penggunaan
 
-## GET Request
+### GET Request
 
 ```go
 package main
@@ -49,7 +49,7 @@ func main() {
 }
 ```
 
-## POST Request dengan JSON
+### POST Request dengan JSON
 
 ```go
 package main
@@ -82,7 +82,7 @@ func main() {
 }
 ```
 
-## POST dengan XML
+### POST dengan XML
 
 ```go
 package main
@@ -116,7 +116,7 @@ func main() {
 }
 ```
 
-## Basic Auth
+### Basic Auth
 
 ```go
 package main
@@ -146,7 +146,7 @@ func main() {
 ```
 
 
-## Flexible Response → Unmarshal langsung ke struct (opsional)
+### Flexible Response → Unmarshal langsung ke struct (opsional)
 
 ```go
 package main
