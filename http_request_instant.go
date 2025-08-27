@@ -53,6 +53,27 @@ func NewHttpRequest() *HttpRequest {
 	}
 }
 
+// RequestWithParse mempermudah request + langsung parsing response ke struct target
+func (h *HttpRequest) RequestWithParse(opts RequestOptions, target interface{}) (*ApiResponse, error) {
+	resp, err := h.Request(opts)
+	if err != nil {
+		return nil, err
+	}
+
+	if opts.ContentType == "application/xml" {
+		if err := xml.Unmarshal(resp.Body, target); err != nil {
+			return resp, fmt.Errorf("failed to unmarshal XML: %w", err)
+		}
+	} else {
+		// default JSON
+		if err := json.Unmarshal(resp.Body, target); err != nil {
+			return resp, fmt.Errorf("failed to unmarshal JSON: %w", err)
+		}
+	}
+
+	return resp, nil
+}
+
 // Request mengeksekusi HTTP request berdasarkan RequestOptions.
 // Jika IS_PRODUCTION=false, maka akan menggunakan mock response.
 func (c *HttpRequest) Request(options RequestOptions) (*ApiResponse, error) {
