@@ -8,16 +8,18 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strings"
 )
 
 // RequestOptions menyimpan konfigurasi request HTTP.
 type RequestOptions struct {
-	Method      string            // HTTP method (GET, POST, PUT, DELETE, dll.)
-	URL         string            // Target URL
-	Headers     map[string]string // Custom headers
-	RequestBody interface{}       // Body request (bisa map, struct, string, []byte)
-	ContentType string            // application/json, application/xml, dll.
-	*BasicAuth                    // Optional: Basic Auth
+	Method         string            // HTTP method (GET, POST, PUT, DELETE, dll.)
+	URL            string            // Target URL
+	Headers        map[string]string // Custom headers
+	RequestBody    interface{}       // Body request (bisa map, struct, string, []byte)
+	ContentType    string            // Content-Type request (application/json, application/xml, dll.)
+	ResponseTarget interface{}       // Optional: jika diisi, response akan di-unmarshal ke struct
+	*BasicAuth
 }
 
 // BasicAuth menyimpan informasi autentikasi Basic.
@@ -28,8 +30,9 @@ type BasicAuth struct {
 
 // ApiResponse merepresentasikan response dari server.
 type ApiResponse struct {
-	StatusCode int    // HTTP status code
-	Body       []byte // Response body
+	StatusCode int               // HTTP status code
+	Body       []byte            // Response body dalam bentuk raw
+	Headers    map[string]string // Response headers
 }
 
 // HttpRequestInf mendefinisikan interface untuk request HTTP.
@@ -64,16 +67,14 @@ func (c *HttpRequest) Request(options RequestOptions) (*ApiResponse, error) {
 
 	var body []byte
 	if options.RequestBody != nil {
-		// Jika RequestBody sudah string atau []byte → langsung dipakai
 		switch v := options.RequestBody.(type) {
 		case string:
 			body = []byte(v)
 		case []byte:
 			body = v
 		default:
-			// Jika bukan string/[]byte → marshal sesuai ContentType
 			switch options.ContentType {
-			case "application/json":
+			case "application/json", "":
 				body, err = json.Marshal(v)
 			case "application/xml":
 				body, err = xml.Marshal(v)
@@ -93,7 +94,7 @@ func (c *HttpRequest) Request(options RequestOptions) (*ApiResponse, error) {
 		return nil, fmt.Errorf("error create request: %w", err)
 	}
 
-	// Set Content-Type jika ada
+	// Set Content-Type untuk request jika ada
 	if options.ContentType != "" {
 		req.Header.Set("Content-Type", options.ContentType)
 	}
@@ -121,18 +122,52 @@ func (c *HttpRequest) Request(options RequestOptions) (*ApiResponse, error) {
 		return nil, err
 	}
 
+	// Simpan response headers ke map
+	headers := make(map[string]string)
+	for k, v := range resp.Header {
+		if len(v) > 0 {
+			headers[k] = v[0]
+		}
+	}
+
+	// Jika ada ResponseTarget, unmarshal otomatis
+	if options.ResponseTarget != nil {
+		contentType := options.ContentType
+		if contentType == "" {
+			contentType = resp.Header.Get("Content-Type")
+		}
+
+		switch {
+		case strings.Contains(contentType, "application/json"), contentType == "":
+			if err := json.Unmarshal(respByte, options.ResponseTarget); err != nil {
+				return nil, fmt.Errorf("failed to unmarshal JSON response: %w", err)
+			}
+		case strings.Contains(contentType, "application/xml"):
+			if err := xml.Unmarshal(respByte, options.ResponseTarget); err != nil {
+				return nil, fmt.Errorf("failed to unmarshal XML response: %w", err)
+			}
+		default:
+			// fallback JSON
+			if err := json.Unmarshal(respByte, options.ResponseTarget); err != nil {
+				return nil, fmt.Errorf("unsupported Content-Type (%s) and failed JSON fallback: %w", contentType, err)
+			}
+		}
+	}
+
 	return &ApiResponse{
 		StatusCode: resp.StatusCode,
 		Body:       respByte,
+		Headers:    headers,
 	}, nil
 }
 
 // handleDevelopmentRequest mengembalikan response mock
 // jika IS_PRODUCTION=false.
 func (c *HttpRequest) handleDevelopmentRequest(options RequestOptions) (*ApiResponse, error) {
-	respByte := []byte("success")
+	respByte := []byte(`{"mock":"success"}`)
 	return &ApiResponse{
 		StatusCode: 200,
 		Body:       respByte,
+		Headers:    map[string]string{"Content-Type": "application/json"},
 	}, nil
 }
