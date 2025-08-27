@@ -17,7 +17,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version: "1.23" # sesuaikan dengan versi Go yang kamu pakai
+        go-version: "1.24" # sesuaikan dengan versi Go yang kamu pakai
 
     - name: Download dependencies
       run: go mod tidy
