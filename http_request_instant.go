@@ -44,13 +44,23 @@ type HttpRequestInf interface {
 // yang menggunakan http.Client bawaan Go.
 type HttpRequest struct {
 	cl *http.Client
+
+	// debug request and response
+	debug bool
 }
 
 // NewHttpRequest membuat instance baru HttpRequest.
 func NewHttpRequest() *HttpRequest {
 	return &HttpRequest{
 		cl: &http.Client{},
+
+		// default debug is false, set true if wan't print original request, response from client
+		debug: false,
 	}
+}
+
+func (h *HttpRequest) SetDebug(debug bool) {
+	h.debug = debug
 }
 
 // RequestWithParse mempermudah request + langsung parsing response ke struct target
@@ -130,6 +140,20 @@ func (c *HttpRequest) Request(options RequestOptions) (*ApiResponse, error) {
 		req.SetBasicAuth(options.BasicAuth.Username, options.BasicAuth.Password)
 	}
 
+	if c.debug {
+		fmt.Println("=== [HTTP REQUEST] ===")
+		fmt.Printf("URL: %s\n", req.URL.String())
+		fmt.Printf("Method: %s\n", req.Method)
+		fmt.Println("Headers:")
+		for k, v := range req.Header {
+			fmt.Printf("  %s: %s\n", k, strings.Join(v, ", "))
+		}
+		if body != nil {
+			fmt.Printf("Body: %s\n", string(body))
+		}
+		fmt.Println("======================")
+	}
+
 	// Eksekusi request
 	resp, err := c.cl.Do(req)
 	if err != nil {
@@ -149,6 +173,18 @@ func (c *HttpRequest) Request(options RequestOptions) (*ApiResponse, error) {
 		if len(v) > 0 {
 			headers[k] = v[0]
 		}
+	}
+
+	// Debug: print response details
+	if c.debug {
+		fmt.Println("=== [HTTP RESPONSE] ===")
+		fmt.Printf("Status Code: %d\n", resp.StatusCode)
+		fmt.Println("Headers:")
+		for k, v := range resp.Header {
+			fmt.Printf("  %s: %s\n", k, strings.Join(v, ", "))
+		}
+		fmt.Printf("Body: %s\n", string(respByte))
+		fmt.Println("=======================")
 	}
 
 	// Jika ada ResponseTarget, unmarshal otomatis

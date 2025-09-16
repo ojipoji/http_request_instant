@@ -31,6 +31,7 @@ func TestJSONResponse(t *testing.T) {
 
 	var post Post
 	client := NewHttpRequest()
+	client.debug = true
 	resp, err := client.Request(RequestOptions{
 		Method:         "GET",
 		URL:            ts.URL,
@@ -57,6 +58,7 @@ func TestXMLResponse(t *testing.T) {
 
 	var note Note
 	client := NewHttpRequest()
+	client.SetDebug(false)
 	resp, err := client.Request(RequestOptions{
 		Method:         "GET",
 		URL:            ts.URL,
