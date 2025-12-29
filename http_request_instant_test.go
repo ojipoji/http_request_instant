@@ -1,12 +1,13 @@
 package http_request_instant
 
 import (
+	"context"
 	"encoding/json"
 	"encoding/xml"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
+	"time"
 )
 
 // Struct contoh untuk JSON
@@ -31,8 +32,8 @@ func TestJSONResponse(t *testing.T) {
 
 	var post Post
 	client := NewHttpRequest()
-	client.debug = true
-	resp, err := client.Request(RequestOptions{
+	client.SetDebug(true)
+	resp, err := client.Request(context.TODO(), RequestOptions{
 		Method:         "GET",
 		URL:            ts.URL,
 		ResponseTarget: &post,
@@ -59,7 +60,7 @@ func TestXMLResponse(t *testing.T) {
 	var note Note
 	client := NewHttpRequest()
 	client.SetDebug(false)
-	resp, err := client.Request(RequestOptions{
+	resp, err := client.Request(context.TODO(), RequestOptions{
 		Method:         "GET",
 		URL:            ts.URL,
 		ResponseTarget: &note,
@@ -84,7 +85,7 @@ func TestRawResponse(t *testing.T) {
 	defer ts.Close()
 
 	client := NewHttpRequest()
-	resp, err := client.Request(RequestOptions{
+	resp, err := client.Request(context.TODO(), RequestOptions{
 		Method: "GET",
 		URL:    ts.URL,
 	})
@@ -96,22 +97,43 @@ func TestRawResponse(t *testing.T) {
 	}
 }
 
-func TestDevelopmentMode(t *testing.T) {
-	// set env ke development
-	_ = os.Setenv("IS_PRODUCTION", "false")
+func TestTimeout(t *testing.T) {
+	// bikin server dummy remote yang lambat
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(200 * time.Millisecond)
+		w.WriteHeader(200)
+	}))
+	defer ts.Close()
 
 	client := NewHttpRequest()
-	resp, err := client.Request(RequestOptions{
-		Method: "GET",
-		URL:    "http://example.com",
-	})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if string(resp.Body) != `{"mock":"success"}` {
-		t.Errorf("expected mock response, got %s", string(resp.Body))
-	}
+	// Set timeout sangat singkat
+	client.Client.Timeout = 50 * time.Millisecond
 
-	// reset env
-	_ = os.Setenv("IS_PRODUCTION", "true")
+	_, err := client.Request(context.Background(), RequestOptions{
+		Method: "GET",
+		URL:    ts.URL,
+	})
+	if err == nil {
+		t.Fatal("expected timeout error, got nil")
+	}
+}
+
+func TestContextCancel(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(500 * time.Millisecond)
+		w.WriteHeader(200)
+	}))
+	defer ts.Close()
+
+	client := NewHttpRequest()
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	_, err := client.Request(ctx, RequestOptions{
+		Method: "GET",
+		URL:    ts.URL,
+	})
+	if err == nil {
+		t.Fatal("expected context deadline exceeded error, got nil")
+	}
 }

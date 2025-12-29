@@ -2,13 +2,14 @@ package http_request_instant
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"strings"
+	"time"
 )
 
 // RequestOptions menyimpan konfigurasi request HTTP.
@@ -37,62 +38,35 @@ type ApiResponse struct {
 
 // HttpRequestInf mendefinisikan interface untuk request HTTP.
 type HttpRequestInf interface {
-	Request(options RequestOptions) (*ApiResponse, error)
+	Request(ctx context.Context, options RequestOptions) (*ApiResponse, error)
 }
 
 // HttpRequest adalah implementasi HttpRequestInf
 // yang menggunakan http.Client bawaan Go.
 type HttpRequest struct {
-	cl *http.Client
+	Client *http.Client
 
 	// debug request and response
-	debug bool
+	Debug bool
 }
 
-// NewHttpRequest membuat instance baru HttpRequest.
+// NewHttpRequest membuat instance baru HttpRequest dengan default timeout 30 detik.
 func NewHttpRequest() *HttpRequest {
 	return &HttpRequest{
-		cl: &http.Client{},
-
-		// default debug is false, set true if wan't print original request, response from client
-		debug: false,
+		Client: &http.Client{
+			Timeout: 30 * time.Second,
+		},
+		Debug: false,
 	}
 }
 
+// SetDebug mengaktifkan atau menonaktifkan mode debug.
 func (h *HttpRequest) SetDebug(debug bool) {
-	h.debug = debug
-}
-
-// RequestWithParse mempermudah request + langsung parsing response ke struct target
-func (h *HttpRequest) RequestWithParse(opts RequestOptions, target interface{}) (*ApiResponse, error) {
-	resp, err := h.Request(opts)
-	if err != nil {
-		return nil, err
-	}
-
-	if opts.ContentType == "application/xml" {
-		if err := xml.Unmarshal(resp.Body, target); err != nil {
-			return resp, fmt.Errorf("failed to unmarshal XML: %w", err)
-		}
-	} else {
-		// default JSON
-		if err := json.Unmarshal(resp.Body, target); err != nil {
-			return resp, fmt.Errorf("failed to unmarshal JSON: %w", err)
-		}
-	}
-
-	return resp, nil
+	h.Debug = debug
 }
 
 // Request mengeksekusi HTTP request berdasarkan RequestOptions.
-// Jika IS_PRODUCTION=false, maka akan menggunakan mock response.
-func (c *HttpRequest) Request(options RequestOptions) (*ApiResponse, error) {
-
-	// Mode development: return mock response
-	if os.Getenv("IS_PRODUCTION") == "false" {
-		return c.handleDevelopmentRequest(options)
-	}
-
+func (c *HttpRequest) Request(ctx context.Context, options RequestOptions) (*ApiResponse, error) {
 	var req *http.Request
 	var err error
 
@@ -116,9 +90,9 @@ func (c *HttpRequest) Request(options RequestOptions) (*ApiResponse, error) {
 				return nil, fmt.Errorf("error marshal request body: %w", err)
 			}
 		}
-		req, err = http.NewRequest(options.Method, options.URL, bytes.NewBuffer(body))
+		req, err = http.NewRequestWithContext(ctx, options.Method, options.URL, bytes.NewBuffer(body))
 	} else {
-		req, err = http.NewRequest(options.Method, options.URL, nil)
+		req, err = http.NewRequestWithContext(ctx, options.Method, options.URL, nil)
 	}
 
 	if err != nil {
@@ -140,7 +114,7 @@ func (c *HttpRequest) Request(options RequestOptions) (*ApiResponse, error) {
 		req.SetBasicAuth(options.BasicAuth.Username, options.BasicAuth.Password)
 	}
 
-	if c.debug {
+	if c.Debug {
 		fmt.Println("=== [HTTP REQUEST] ===")
 		fmt.Printf("URL: %s\n", req.URL.String())
 		fmt.Printf("Method: %s\n", req.Method)
@@ -155,7 +129,7 @@ func (c *HttpRequest) Request(options RequestOptions) (*ApiResponse, error) {
 	}
 
 	// Eksekusi request
-	resp, err := c.cl.Do(req)
+	resp, err := c.Client.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -176,7 +150,7 @@ func (c *HttpRequest) Request(options RequestOptions) (*ApiResponse, error) {
 	}
 
 	// Debug: print response details
-	if c.debug {
+	if c.Debug {
 		fmt.Println("=== [HTTP RESPONSE] ===")
 		fmt.Printf("Status Code: %d\n", resp.StatusCode)
 		fmt.Println("Headers:")
@@ -215,16 +189,5 @@ func (c *HttpRequest) Request(options RequestOptions) (*ApiResponse, error) {
 		StatusCode: resp.StatusCode,
 		Body:       respByte,
 		Headers:    headers,
-	}, nil
-}
-
-// handleDevelopmentRequest mengembalikan response mock
-// jika IS_PRODUCTION=false.
-func (c *HttpRequest) handleDevelopmentRequest(options RequestOptions) (*ApiResponse, error) {
-	respByte := []byte(`{"mock":"success"}`)
-	return &ApiResponse{
-		StatusCode: 200,
-		Body:       respByte,
-		Headers:    map[string]string{"Content-Type": "application/json"},
 	}, nil
 }
